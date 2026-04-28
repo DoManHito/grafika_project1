@@ -22,7 +22,7 @@ impl App {
 impl ApplicationHandler<State> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes()
-            .with_title("grafika_project1")
+            .with_title("Project 1")
             .with_inner_size(winit::dpi::LogicalSize::new(640, 480));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.state = Some(pollster::block_on(State::new(window, self.config_zad_1)).unwrap());
