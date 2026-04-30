@@ -13,19 +13,19 @@
 * **Model rzutowania:** Zastosowano macierz rzutowania perspektywicznego, gdzie kąt widzenia ($FOV$) został wyliczony na podstawie ogniskowej $f=5$ oraz rozmiaru piksela $0.01$.
 
 ### Pliki zrodlowe:
-* **app.rs** Odpowiada za integrację z biblioteką winit, obsługę okna aplikacji oraz pętli zdarzeń, z którą powiązane jest renderowanie i przechwytywanie wejścia od użytkownika.
-* **camera.rs** Definiuje strukturę danych kamery (CameraUniform) oraz zawiera stałe konfiguracyjne wykorzystywane do obliczeń perspektywy i mechaniki animacji (np. ognisko rzutu, mnożniki, czy stałe do rotacji A i B).
+* **app.rs** Odpowiada za integrację z biblioteką winit (inicjalizacja okna), obsługę okna aplikacji oraz pętli zdarzeń, z którą powiązane jest renderowanie i przechwytywanie wejścia od użytkownika.
+* **camera.rs** Definiuje strukturę danych kamery oraz zawiera stałe konfiguracyjne wykorzystywane do obliczeń perspektywy i mechaniki animacji (np. ognisko rzutu, mnożniki, czy stałe do rotacji A i B).
 * **lib.rs** Plik łączący poszczególne moduły w spójną architekturę. Udostępnia publiczną funkcję run(), odpowiedzialną za inicjalizację głównej pętli aplikacji.
 * **main.rs** Krótki punkt wejścia programu, który po prostu wywołuje główną logikę z określoną flagą wariantu zadania.
 * **shader.wgsl** Kod programów kolorujacych (vertex i fragment shader) napisany w języku WGSL. Wykonuje mnożenie wierzchołków przez macierze transformacji oraz używa wbudowanej zmiennej @builtin(front_facing) do dynamicznego dwustronnego nakładania kolorów.
 * **state.rs** Główne serce aplikacji i zarządca biblioteki graficznej. Inicjalizuje kontekst wgpu, buffory, potok renderowania i zarządza logiką klatek animacji (w tym obliczaniem macierzy transformacji dla ruchu).
-* **vertices.rs** Zawiera twarde definicje geometrii — współrzędne położenia wierzchołków oraz ich kolory zadeklarowane dla obu części zadań. Ponadto przechowuje odpowiednie zbiory indeksów służące do poprawnej triangulacji figur.
+* **vertices.rs** Zawiera stałe geometryczne — współrzędne położenia wierzchołków oraz ich kolory zadeklarowane dla obu części zadań. Ponadto przechowuje odpowiednie zbiory indeksów służące do poprawnej triangulacji figur.
 
 ### Rozważane warianty i napotkane problemy:
 1. Problem triangulacji trójkąta z dziurą (wybór pomiędzy 6 a 9 trójkątami)
-Aby wyrenderować trójkąt A z wewnętrznym, pustym wycięciem w wariancie (b), należało go poddać triangulacji (podzielić na mniejsze wypukłe elementy). Ze względu na to, że układ graficzny renderuje jedynie pełne trójkąty, pojawił się problem optymalnego podziału powierzchni "obręczy" pomiędzy krawędzią zewnętrzną a wewnętrzną. Rozważano podział na 9 trójkątów, co mogłoby wyniknąć z dodania dodatkowych wierzchołków pomocniczych lub mniej optymalnego łączenia punktów. Ostatecznie postawiono na minimalizm i podzielono wycięty kształt na dokładnie 6 trójkątów (powstałych z podziału trzech czworokątów wokół otworu). Udane rozwiązanie wymagało manualnego zdefiniowania tablicy 18 wskaźników łączących odpowiednie wierzchołki, co przełożyło się na mniejsze obciążenie bufora indeksów i większą wydajność.
+Aby wyrenderować trójkąt A z wewnętrznym, pustym wycięciem w wariancie b, należało go poddać triangulacji. Ze względu na to, że układ graficzny renderuje jedynie pełne trójkąty, pojawił się problem optymalnego podziału powierzchni obręczy pomiędzy krawędzią zewnętrzną a wewnętrzną. Rozważano podział na 9 trójkątów, co mogłoby wyniknąć z dodania dodatkowych wierzchołków pomocniczych lub mniej optymalnego łączenia punktów. Ostatecznie postawiono na minimalizm i podzielono wycięty kształt na dokładnie 6 trójkątów (powstałych z podziału trzech czworokątów wokół otworu). Udane rozwiązanie wymagało manualnego zdefiniowania tablicy 18 wskaźników łączących odpowiednie wierzchołki, co przełożyło się na mniejsze obciążenie bufora indeksów i większą wydajność.
 2. Problem wyboru formatu wektora pozycji (3- vs 4-elementowe typy)
-Kolejnym napotkanym wyzwaniem była decyzja projektowa dotycząca struktury danych dla atrybutów wierzchołka: użycia 3 elementów (x, y, z) czy 4 elementów (x, y, z, w). Chociaż geometria przestrzenna operuje na trzech wymiarach, wybrano typ 4-elementowy [f32; 4]. Implementacja takich wektorów była podyktowana wymogami programów cieniujących zdefiniowanych w WGSL, które przyjmują zmienne typu vec4<f32>. Posiadanie czwartego komponentu ("w" - współrzędnej jednorodnej ustawionej na wartość 1.0) było kluczowe, aby móc poprawnie pomnożyć wektor pozycji przez macierz transformacji rzutowania perspektywicznego view_proj oraz macierz modelu model_matrix w vertex shaderze. Oprócz spełnienia wymagań matematyki transformacyjnej, ułatwiło to także kwestię wyrównania pamięci (memory alignment) przesyłanej z Rusta prosto do API.
+Kolejnym napotkanym problemem była decyzja projektowa dotycząca struktury danych dla atrybutów wierzchołka: użycia 3 elementów (x, y, z) czy 4 elementów (x, y, z, w). Chociaż geometria przestrzenna operuje na trzech wymiarach, wybrano typ 4-elementowy [f32; 4]. Implementacja takich wektorów była podyktowana wymogami programów kolorujacych zdefiniowanych w WGSL, które przyjmują zmienne typu vec4<f32>. Posiadanie czwartego komponentu ("w" - współrzędnej jednorodnej ustawionej na wartość 1.0) było kluczowe, aby móc poprawnie pomnożyć wektor pozycji przez macierz transformacji rzutowania perspektywicznego view_proj oraz macierz modelu model_matrix w vertex shaderze. Oprócz spełnienia wymagań matematyki transformacyjnej, ułatwiło to także kwestię wyrównania pamięci (memory alignment) przesyłanej z Rusta prosto do API.
 
 ---
 
@@ -39,6 +39,7 @@ W folderze głównym znajdują się skompilowane statycznie pliki `.exe` oraz `.
 
 **Sterowanie:**
 * `Spacja` lub `Esc` – wyjście z aplikacji.
+* Aby zmienić wyświetlane zadanie, należy zmienić wartość zmiennej $czy_zad1$ na $true$ w pliku `main.rs`.
 
 ### Kompilacja ze źródeł:
 Wymagane środowisko Rust (https://rust-lang.org/tools/install/).

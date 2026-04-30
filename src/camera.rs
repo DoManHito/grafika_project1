@@ -7,6 +7,9 @@ pub struct CameraUniform {
 // Stale z numeru albumu 2175|1|9|
 pub const A_DIGIT: f32 = 1.0;
 pub const B_DIGIT: f32 = 9.0;
+// Rozmiar okna
+pub const WIDTH: u32 = 640;
+pub const HEIGHT: u32 = 480;
 // Stale sluzace do definiowania odleglasci renderowanych objektow
 pub const Z_NEAR: f32 = 0.1;
 pub const Z_FAR: f32 = 100.0;

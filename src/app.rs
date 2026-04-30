@@ -1,4 +1,4 @@
-use crate::state::State;
+use crate::{camera, state::State};
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler, event::*, event_loop::ActiveEventLoop, keyboard::PhysicalKey,
@@ -23,7 +23,7 @@ impl ApplicationHandler<State> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes()
             .with_title("Project 1")
-            .with_inner_size(winit::dpi::LogicalSize::new(640, 480));
+            .with_inner_size(winit::dpi::LogicalSize::new(camera::WIDTH, camera::HEIGHT));
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.state = Some(pollster::block_on(State::new(window, self.config_zad_1)).unwrap());
     }
