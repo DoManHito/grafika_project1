@@ -3,11 +3,8 @@ name = "grafika_project1"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "Zad1"
-path = "src/main.rs"
-
 [dependencies]
+image = "0.25"
 anyhow = "1.0"
 winit = { version = "0.30", features = ["android-native-activity"] }
 env_logger = "0.11.10"

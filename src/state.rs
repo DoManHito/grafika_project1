@@ -1,7 +1,10 @@
 use crate::{camera, vertices};
-use std::{sync::Arc};
+use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
+
+// Gif
+//use image::{ImageBuffer, Rgba};
 
 pub struct State {
     config_zad1: bool,
@@ -45,6 +48,11 @@ pub struct State {
     camera_uniform: camera::CameraUniform,
     camera_bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
+
+    // Gif
+    // output_buffer: wgpu::Buffer,
+    // padded_bytes_per_row: u32,
+    // unpadded_bytes_per_row: u32,
 }
 
 impl State {
@@ -91,34 +99,18 @@ impl State {
             .unwrap_or(surface_caps.formats[0]);
 
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::AutoNoVsync,
             desired_maximum_frame_latency: 2,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
 
         // Camera
-        let proj = glam::Mat4::perspective_rh(
-            camera::FOV, 
-            6.4 / 4.8, 
-            camera::Z_NEAR, 
-            camera::Z_FAR
-        );
-        let view = glam::Mat4::look_at_rh(
-            glam::Vec3::new(0.0, 0.0, camera::F),
-            glam::Vec3::new(0.0, 0.0, camera::CENTER),
-            glam::Vec3::Y,
-        );
-        let correction = glam::Mat4::from_scale(glam::vec3(1.0, -1.0, 1.0));
-
-        let camera_uniform = camera::CameraUniform {
-            view_proj: (correction * proj * view).to_cols_array_2d(),
-        };
-
+        let camera_uniform = create_camera_uniform(6.4, 4.8);
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
@@ -291,6 +283,21 @@ impl State {
             "vs_main",
         );
 
+        // Gif
+        // let width = size.width;
+        // let height = size.height;
+        // let unpadded_bytes_per_row = width * 4; // RGBA
+        // let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        // let padded_bytes_per_row_padding = (align - unpadded_bytes_per_row % align) % align;
+        // let padded_bytes_per_row = unpadded_bytes_per_row + padded_bytes_per_row_padding;
+
+        // let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        //     label: Some("Output Buffer"),
+        //     size: (padded_bytes_per_row * height) as u64,
+        //     usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+        //     mapped_at_creation: false,
+        // });
+
         Ok(Self {
             config_zad1,
             last_frame_inst: std::time::Instant::now(),
@@ -310,7 +317,7 @@ impl State {
             index_b_buffer,
             num_indices_b,
             camera_bind_group,
-            frame_index: 0,
+            frame_index: camera::FRAME_START,
             depth_view,
             camera_uniform,
             camera_buffer,
@@ -318,6 +325,10 @@ impl State {
             model_b_buffer,
             model_a_bind_group,
             model_b_bind_group,
+            // Gif
+            // output_buffer,
+            // unpadded_bytes_per_row,
+            // padded_bytes_per_row,
         })
     }
 
@@ -345,16 +356,7 @@ impl State {
             self.depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
             // Camera
-            let aspect = width as f32 / height as f32;
-            let fov_y = camera::FOV;
-            let proj = glam::Mat4::perspective_rh(fov_y, aspect, camera::Z_NEAR, camera::Z_FAR);
-            let view = glam::Mat4::look_at_rh(
-                glam::Vec3::new(0.0, 0.0, camera::F),
-                glam::Vec3::new(0.0, 0.0, camera::CENTER),
-                glam::Vec3::Y,
-            );
-            let correction = glam::Mat4::from_scale(glam::vec3(1.0, -1.0, 1.0));
-            self.camera_uniform.view_proj = (correction * proj * view).to_cols_array_2d();
+            self.camera_uniform = create_camera_uniform(width as f32, height as f32);
             self.queue.write_buffer(
                 &self.camera_buffer,
                 0,
@@ -374,31 +376,16 @@ impl State {
     pub fn handle_mouse_moved(&mut self, _x: f64, _y: f64) {}
 
     pub fn update(&mut self) {
-
-        // Fps
-        let now = std::time::Instant::now();
-        let dt = now.duration_since(self.last_frame_inst).as_secs_f32();
-        self.last_frame_inst = now;
-
-        self.accum_time += dt;
-        self.frame_count += 1;
-
-        if self.accum_time >= 1.0 {
-            let fps = self.frame_count as f32 / self.accum_time;
-            self.window
-                .set_title(&format!("Projekt 1 | FPS: {:.1}", fps));
-            self.accum_time = 0.0;
-            self.frame_count = 0;
-        }
-
         if self.config_zad1 {
             return;
         }
 
         // Rotation
-        let speed_multiplier = 1.0;
-        let n = speed_multiplier * (self.frame_index) as f32;
         self.frame_index += 1;
+        let n = self.frame_index as f32 * camera::SPEED_MULTIPLIER;
+        if n == camera::FRAME_LIMIT as f32{
+            self.frame_index = camera::FRAME_START;
+        }
 
         let roll_a = (n * (2.0 + camera::A_DIGIT / 10.0)).to_radians();
         let pitch_a = (n * (1.0 + camera::B_DIGIT / 10.0)).to_radians();
@@ -429,6 +416,9 @@ impl State {
 
     pub fn render(&mut self) -> anyhow::Result<()> {
         self.window.request_redraw();
+
+        // Fps
+        let frame_start_time = std::time::Instant::now();
 
         // We can't render unless the surface is configured
         if !self.is_surface_configured {
@@ -509,11 +499,97 @@ impl State {
             render_pass.draw_indexed(0..self.num_indices_b, 0, 0..1);
         }
 
+        // Gif
+        // {
+        //     encoder.copy_texture_to_buffer(
+        //         wgpu::TexelCopyTextureInfo {
+        //             aspect: wgpu::TextureAspect::All,
+        //             texture: &output.texture,
+        //             mip_level: 0,
+        //             origin: wgpu::Origin3d::ZERO,
+        //         },
+        //         wgpu::TexelCopyBufferInfo {
+        //             buffer: &self.output_buffer,
+        //             layout: wgpu::TexelCopyBufferLayout {
+        //                 offset: 0,
+        //                 bytes_per_row: Some(self.padded_bytes_per_row),
+        //                 rows_per_image: Some(self.config.height),
+        //             },
+        //         },
+        //         wgpu::Extent3d {
+        //             width: self.config.width,
+        //             height: self.config.height,
+        //             depth_or_array_layers: 1,
+        //         },
+        //     );
+        // }
+
         // submit will accept anything that implements IntoIter
         self.queue.submit(std::iter::once(encoder.finish()));
+        // self.capture_frame();
         output.present();
 
+
+        // Fps
+        let dt = frame_start_time.duration_since(self.last_frame_inst).as_secs_f32();
+        self.last_frame_inst = frame_start_time;
+
+        self.accum_time += dt;
+        self.frame_count += 1;
+
+        if self.accum_time >= 1.0 {
+            let fps = self.frame_count as f32 / self.accum_time;
+            self.window.set_title(&format!("Projekt 1 | FPS: {:.1}", fps));
+            self.accum_time = 0.0;
+            self.frame_count = 0;
+        }
+
+        let spent_time = frame_start_time.elapsed().as_secs_f64();
+        if spent_time < camera::FRAME_DURATION {
+            std::thread::sleep(std::time::Duration::from_secs_f64(camera::FRAME_DURATION - spent_time));
+        }
+
         Ok(())
+    }
+
+    // Gif
+    // fn capture_frame(&self) {
+    //     let buffer_slice = self.output_buffer.slice(..);
+        
+    //     let (tx, rx) = std::sync::mpsc::channel();
+    //     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+    //         tx.send(result).unwrap();
+    //     });
+    //     self.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+
+    //     if let Ok(Ok(_)) = rx.recv() {
+    //         let data = buffer_slice.get_mapped_range();
+
+    //         let mut unpadded_data = Vec::with_capacity((self.config.width * self.config.height * 4) as usize);
+    //         for chunk in data.chunks(self.padded_bytes_per_row as usize) {
+    //             unpadded_data.extend_from_slice(&chunk[..self.unpadded_bytes_per_row as usize]);
+    //         }
+    //         let path = format!("frames/frame_{:04}.png", self.frame_index);
+    //         if let Some(buffer) = ImageBuffer::<Rgba<u8>, _>::from_raw(self.config.width, self.config.height, unpadded_data) {
+    //             buffer.save(path).unwrap();
+    //         }
+    //         drop(data);
+    //         self.output_buffer.unmap();
+    //     }
+    // }
+}
+
+fn create_camera_uniform(width: f32, height: f32) -> camera::CameraUniform {
+    let aspect = width / height;
+    let fov = 2.0 * f32::atan((height * 0.01) / (camera::F * 2.0));
+    let proj = glam::Mat4::perspective_rh(fov, aspect, camera::Z_NEAR, camera::Z_FAR);
+    let view = glam::Mat4::look_at_rh(
+        glam::Vec3::new(0.0, 0.0, -camera::F),
+        glam::Vec3::ZERO,
+        glam::Vec3::Y,
+    );
+    camera::CameraUniform {
+        view_proj: (proj * view).to_cols_array_2d(),
     }
 }
 
@@ -562,7 +638,7 @@ fn create_pipeline(
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
-            front_face: wgpu::FrontFace::Cw,
+            front_face: wgpu::FrontFace::Ccw,
             cull_mode: None,
             // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill,

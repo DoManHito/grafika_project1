@@ -1,5 +1,6 @@
 use grafika_project1::run;
 
 fn main() {
-    let _ = run(true);
+    let czy_zad1 = false;
+    let _ = run(czy_zad1);
 }
